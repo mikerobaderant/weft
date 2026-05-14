@@ -37,3 +37,8 @@ weavemind-logs.txt
 __pycache__
 CODE_QUALITY_TRIAGE.md
 .claude/agents/prompt-engineering.md
+.DS_Store
+
+# Local-only artifacts (kind CLI binary, local Restate config)
+kind
+restate-data.toml
