@@ -1,4 +1,4 @@
-//! Tangle-lite chat endpoint: a stateless, provider-agnostic wrapper
+//! Weave Chat endpoint: a stateless, provider-agnostic wrapper
 //! around the existing LLM helpers that the dashboard calls from a
 //! right-sidebar chat panel.
 //!
@@ -55,7 +55,7 @@ pub async fn chat(
     let provider = cfg
         .provider
         .filter(|v| !v.is_empty())
-        .or_else(|| std::env::var("TANGLE_LITE_PROVIDER").ok().filter(|v| !v.is_empty()))
+        .or_else(|| std::env::var("WEAVE_CHAT_PROVIDER").ok().filter(|v| !v.is_empty()))
         .unwrap_or_else(|| "openrouter".to_string());
 
     let default_model = match provider.as_str() {
@@ -65,7 +65,7 @@ pub async fn chat(
     let model = cfg
         .model
         .filter(|v| !v.is_empty())
-        .or_else(|| std::env::var("TANGLE_LITE_MODEL").ok().filter(|v| !v.is_empty()))
+        .or_else(|| std::env::var("WEAVE_CHAT_MODEL").ok().filter(|v| !v.is_empty()))
         .unwrap_or_else(|| default_model.to_string());
 
     // Find the last user message; that's the "prompt" in minillmlib terms.
