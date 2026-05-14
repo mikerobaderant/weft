@@ -12,8 +12,9 @@ export const LlmConfigNode: NodeTemplate = {
 	category: 'AI',
 	tags: ['config', 'ai', 'settings', 'model'],
 	fields: [
-		{ key: 'apiKey', label: 'API Key', type: 'api_key', provider: 'openrouter' },
-		{ key: 'model', label: 'Model', type: 'text', placeholder: 'anthropic/claude-3.5-sonnet' },
+		{ key: 'provider', label: 'Provider', type: 'select', options: ['openrouter', 'bedrock'], description: 'OpenRouter uses the API Key field below. Bedrock reads AWS credentials from the server environment (AWS_REGION + default AWS credential chain).' },
+		{ key: 'apiKey', label: 'API Key', type: 'api_key', provider: 'openrouter', description: 'Used only when Provider = openrouter.' },
+		{ key: 'model', label: 'Model', type: 'text', placeholder: 'anthropic/claude-3.5-sonnet', description: 'OpenRouter slug (e.g. anthropic/claude-sonnet-4.6) or Bedrock model ID / inference profile (e.g. us.anthropic.claude-sonnet-4-20250514-v1:0).' },
 		{ key: 'systemPrompt', label: 'System Prompt', type: 'textarea', placeholder: 'You are a helpful assistant.' },
 		{ key: 'maxTokens', label: 'Max Tokens', type: 'number', placeholder: '4096' },
 		{ key: 'temperature', label: 'Temperature', type: 'number', placeholder: '0.7' },
@@ -35,7 +36,8 @@ export const LlmConfigNode: NodeTemplate = {
 	validate: (context: ValidationContext): ValidationError[] => {
 		const errors: ValidationError[] = [];
 
-		if (!isApiKeyReady('apiKey', context.config)) {
+		const provider = context.config?.provider ?? 'openrouter';
+		if (provider === 'openrouter' && !isApiKeyReady('apiKey', context.config)) {
 			errors.push({ field: 'apiKey', message: 'Own key selected but not entered', level: 'runtime' });
 		}
 		if (!hasConfigValue('model', context.config)) {

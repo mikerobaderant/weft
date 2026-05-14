@@ -46,6 +46,10 @@ restate-sdk = "0.7"
 # LLM - use local path during development, switch to crates.io for release
 minillmlib = "0.3.4"
 
+# AWS Bedrock (second LLM provider alongside OpenRouter)
+aws-config = { version = "1.5", features = ["behavior-version-latest"] }
+aws-sdk-bedrockruntime = "1.69"
+
 # Kubernetes
 kube = { version = "3.0.1", features = ["client", "runtime", "rustls-tls"] }
 k8s-openapi = { version = "0.27", features = ["latest"] }

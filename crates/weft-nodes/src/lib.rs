@@ -12,6 +12,8 @@ pub mod form_registrar;
 
 // Unified node system
 pub mod node;
+pub mod bedrock;
+pub mod llm_call;
 pub mod registry;
 pub mod runner;
 pub mod constants;
