@@ -1,7 +1,7 @@
 FROM node:20-alpine
 
 RUN apk add --no-cache git
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
 
 WORKDIR /app
 
