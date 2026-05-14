@@ -878,15 +878,60 @@ impl ExecutionContext {
         let resolved = self.resolve_api_key(api_key_value, provider)
             .ok_or_else(|| "No API key available. Configure your own key or ensure platform credits are set up.".to_string())?;
 
-        let generator = match provider {
-            "openrouter" => minillmlib::GeneratorInfo::openrouter(model).with_api_key(&resolved.key),
-            _ => return Err(format!("Unknown provider: {}", provider)),
-        };
+        if provider != "openrouter" {
+            return Err(format!("Unknown provider: {}", provider));
+        }
 
         let api_url = std::env::var("API_URL")
             .unwrap_or_else(|_| "http://localhost:3000".to_string());
 
-        Ok(self.completion_context(generator, &api_url, resolved.is_byok))
+        let meta = crate::llm_call::CostMeta {
+            user_id: self.userId.clone().unwrap_or_else(|| "local".to_string()),
+            project_id: self.projectId.clone(),
+            execution_id: Some(self.executionId.clone()),
+            node_id: Some(self.nodeId.clone()),
+            is_byok: resolved.is_byok,
+        };
+
+        Ok(crate::llm_call::build_openrouter_context(
+            model,
+            &resolved.key,
+            meta,
+            api_url,
+            Some(self.cost_accumulator.clone()),
+            Self::internal_api_key(),
+        ))
+    }
+
+    /// Build a Bedrock completion context backed by the same cost-reporting
+    /// pipeline as `tracked_ai_context` (openrouter). Credentials come from
+    /// the default AWS credential chain (env, shared config, IAM role, SSO).
+    ///
+    /// `model` is a Bedrock model ID or inference profile ID
+    /// (e.g. `anthropic.claude-sonnet-4-20250514-v1:0` or
+    /// `us.anthropic.claude-sonnet-4-20250514-v1:0`).
+    pub async fn tracked_bedrock_context(
+        &self,
+        model: &str,
+    ) -> crate::bedrock::BedrockContext {
+        let api_url = std::env::var("API_URL")
+            .unwrap_or_else(|_| "http://localhost:3000".to_string());
+
+        let meta = crate::llm_call::CostMeta {
+            user_id: self.userId.clone().unwrap_or_else(|| "local".to_string()),
+            project_id: self.projectId.clone(),
+            execution_id: Some(self.executionId.clone()),
+            node_id: Some(self.nodeId.clone()),
+            is_byok: false,
+        };
+
+        crate::llm_call::build_bedrock_context(
+            model,
+            meta,
+            api_url,
+            Some(self.cost_accumulator.clone()),
+            Self::internal_api_key(),
+        ).await
     }
 
     /// Get a ready-to-use InfraClient for an infrastructure sidecar.

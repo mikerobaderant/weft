@@ -107,13 +107,33 @@ impl Node for LlmNode {
             .and_then(|v| v.as_str())
             .unwrap_or("");
 
-        let completion_ctx = match ctx.tracked_ai_context("openrouter", model, llm_config.as_ref()).await {
+        let provider = config_source.get("provider")
+            .and_then(|v| v.as_str())
+            .unwrap_or("openrouter");
+
+        tracing::info!("LLM request: provider={}, model={}, prompt_len={}, parse_json={}, reasoning={}",
+            provider, model, prompt.len(), parse_json, reasoning_enabled);
+
+        if provider == "bedrock" {
+            let bedrock_ctx = ctx.tracked_bedrock_context(model).await;
+            let params = crate::bedrock::BedrockParams {
+                temperature,
+                max_tokens,
+                top_p,
+            };
+            return match bedrock_ctx.converse(system_prompt, prompt, &params).await {
+                Ok(resp) => build_llm_output(resp.text, parse_json),
+                Err(e) => {
+                    tracing::error!("Bedrock error: {}", e);
+                    NodeResult::failed(&e)
+                }
+            };
+        }
+
+        let completion_ctx = match ctx.tracked_ai_context(provider, model, llm_config.as_ref()).await {
             Ok(c) => c,
             Err(e) => return NodeResult::failed(&e),
         };
-
-        tracing::info!("LLM request: model={}, prompt_len={}, parse_json={}, reasoning={}",
-            model, prompt.len(), parse_json, reasoning_enabled);
 
         let root = ChatNode::root(system_prompt);
         let user_node = root.add_user(prompt);
@@ -153,30 +173,7 @@ impl Node for LlmNode {
         match user_node.complete_tracked(&completion_ctx, Some(&params)).await {
             Ok(response) => {
                 let text = response.text().unwrap_or_default().to_string();
-                
-                // If parse_json was enabled, the text is already valid JSON - parse it to avoid double-encoding
-                let response_value = if parse_json {
-                    serde_json::from_str(&text).unwrap_or_else(|_| serde_json::Value::String(text.clone()))
-                } else {
-                    serde_json::Value::String(text)
-                };
-
-                let mut output = serde_json::Map::new();
-                output.insert("response".to_string(), response_value.clone());
-
-                // When parseJson is true and result is a JSON object, also output
-                // each top-level key as a separate port for direct extraction
-                if parse_json {
-                    if let serde_json::Value::Object(obj) = &response_value {
-                        for (key, val) in obj {
-                            if key != "response" {
-                                output.insert(key.clone(), val.clone());
-                            }
-                        }
-                    }
-                }
-
-                NodeResult::completed(serde_json::Value::Object(output))
+                build_llm_output(text, parse_json)
             }
             Err(e) => {
                 tracing::error!("LLM error: {}", e);
@@ -184,6 +181,32 @@ impl Node for LlmNode {
             }
         }
     }
+}
+
+fn build_llm_output(text: String, parse_json: bool) -> NodeResult {
+    // If parse_json was enabled, the text is already valid JSON - parse it to avoid double-encoding
+    let response_value = if parse_json {
+        serde_json::from_str(&text).unwrap_or_else(|_| serde_json::Value::String(text.clone()))
+    } else {
+        serde_json::Value::String(text)
+    };
+
+    let mut output = serde_json::Map::new();
+    output.insert("response".to_string(), response_value.clone());
+
+    // When parseJson is true and result is a JSON object, also output
+    // each top-level key as a separate port for direct extraction
+    if parse_json {
+        if let serde_json::Value::Object(obj) = &response_value {
+            for (key, val) in obj {
+                if key != "response" {
+                    output.insert(key.clone(), val.clone());
+                }
+            }
+        }
+    }
+
+    NodeResult::completed(serde_json::Value::Object(output))
 }
 
 register_node!(LlmNode);
