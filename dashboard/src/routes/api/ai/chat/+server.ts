@@ -56,10 +56,37 @@ Key rules:
 {{PROJECT}}
 \`\`\`
 
-# Your job
-When the user asks for a change, return the **complete** updated .weft program in a fenced \`\`\`weft code block. Do not return diffs or partial snippets. Keep the existing project structure unless the user explicitly asks for a rewrite. Every edge must connect compatible types; every node must declare its fields and ports.
+# Your job — return SEARCH/REPLACE patches, not full programs
+When the user asks for a change, output one or more SEARCH/REPLACE blocks inside a single fenced \`\`\`\`weft-patch block (note: **four** backticks, not three). The SEARCH text must match the current project byte-for-byte (whitespace and newlines included). The REPLACE text is what it becomes.
 
-If you need clarification before writing code, ask a single concise question and do NOT include a code block. The user's message will be shown to you again with their answer.`;
+Format:
+
+\`\`\`\`weft-patch
+<<<<<<< SEARCH
+<exact text from current project>
+=======
+<replacement text>
+>>>>>>> REPLACE
+\`\`\`\`
+
+You can include multiple SEARCH/REPLACE blocks in the same fence. Each block is applied independently in order.
+
+Two special cases:
+- **Brand-new / empty project.** When the current project is empty (placeholder text says so), use a single block with an empty SEARCH section to insert the whole program:
+  \`\`\`\`weft-patch
+  <<<<<<< SEARCH
+  =======
+  <full new program>
+  >>>>>>> REPLACE
+  \`\`\`\`
+- **Adding a node to an existing project.** Anchor the SEARCH on a small, unique chunk of nearby text (e.g. an existing edge line) and include it in the REPLACE so nothing is lost. Do not put an empty SEARCH against a non-empty project — that will fail.
+
+Rules:
+- Do not return a \`\`\`weft block with the full program. Always use the \`\`\`\`weft-patch fence.
+- Keep SEARCH chunks small and unique. The smaller and more anchored, the less likely you are to clobber adjacent edits.
+- Every edge in the resulting program must connect compatible types; every node must declare its fields and ports.
+
+If you need clarification before producing a patch, ask a single concise question with no fenced block. The user's reply will come back with the same project context.`;
 
 export const POST: RequestHandler = async ({ request, fetch }) => {
 	let body: {

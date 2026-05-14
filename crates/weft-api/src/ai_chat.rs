@@ -39,8 +39,8 @@ pub struct ChatRequest {
 #[derive(Debug, Serialize)]
 pub struct ChatResponse {
     pub text: String,
-    #[serde(rename = "weftCode", skip_serializing_if = "Option::is_none")]
-    pub weft_code: Option<String>,
+    #[serde(rename = "weftPatch", skip_serializing_if = "Option::is_none")]
+    pub weft_patch: Option<String>,
     pub provider: String,
     pub model: String,
 }
@@ -160,11 +160,11 @@ pub async fn chat(
         other => return server_error(format!("Unknown provider: {other}")),
     };
 
-    let weft_code = extract_weft_block(&reply_text);
+    let weft_patch = extract_weft_patch_block(&reply_text);
 
     Json(ChatResponse {
         text: reply_text,
-        weft_code,
+        weft_patch,
         provider,
         model,
     })
@@ -176,16 +176,21 @@ fn server_error(msg: String) -> axum::response::Response {
     (axum::http::StatusCode::INTERNAL_SERVER_ERROR, msg).into_response()
 }
 
-/// Extract the first ```weft fenced code block from an assistant reply.
-/// Returns None if the assistant responded with prose only (e.g. asking
+/// Extract the first ````weft-patch fenced block from an assistant reply.
+/// The fence uses four backticks so embedded triple-backtick examples in
+/// the SEARCH/REPLACE body don't break parsing. Mirrors the regex in
+/// `dashboard/src/lib/ai/weft-patch.ts::extractWeftPatchBlock`.
+///
+/// Returns `None` if the assistant responded with prose only (e.g. asking
 /// a clarification question).
-fn extract_weft_block(text: &str) -> Option<String> {
-    let open = text.find("```weft")?;
-    let after_open = &text[open + "```weft".len()..];
-    // Skip optional newline after the language tag.
-    let content_start = after_open.find('\n').map(|i| i + 1).unwrap_or(0);
+fn extract_weft_patch_block(text: &str) -> Option<String> {
+    const FENCE: &str = "````weft-patch";
+    let open = text.find(FENCE)?;
+    let after_open = &text[open + FENCE.len()..];
+    // Skip optional whitespace + newline after the language tag.
+    let content_start = after_open.find('\n').map(|i| i + 1)?;
     let content = &after_open[content_start..];
-    let close = content.find("```")?;
+    let close = content.find("````")?;
     Some(content[..close].trim_end_matches('\n').to_string())
 }
 
@@ -194,21 +199,37 @@ mod tests {
     use super::*;
 
     #[test]
-    fn extracts_weft_block() {
-        let text = "Sure, here's the project:\n\n```weft\na = Text { value: \"hi\" }\n```\n\nLet me know if you want changes.";
-        let got = extract_weft_block(text).unwrap();
-        assert_eq!(got, "a = Text { value: \"hi\" }");
+    fn extracts_weft_patch_block() {
+        let text = "Sure, here's the change:\n\n````weft-patch\n<<<<<<< SEARCH\nold\n=======\nnew\n>>>>>>> REPLACE\n````\n\nDone.";
+        let got = extract_weft_patch_block(text).unwrap();
+        assert_eq!(
+            got,
+            "<<<<<<< SEARCH\nold\n=======\nnew\n>>>>>>> REPLACE"
+        );
     }
 
     #[test]
     fn returns_none_when_no_fence() {
         let text = "Could you clarify which node you'd like added?";
-        assert!(extract_weft_block(text).is_none());
+        assert!(extract_weft_patch_block(text).is_none());
     }
 
     #[test]
     fn handles_fence_without_trailing_newline() {
-        let text = "```weft\nfoo = Bar {}\n```";
-        assert_eq!(extract_weft_block(text).unwrap(), "foo = Bar {}");
+        let text = "````weft-patch\n<<<<<<< SEARCH\n=======\nfoo = Bar {}\n>>>>>>> REPLACE\n````";
+        assert_eq!(
+            extract_weft_patch_block(text).unwrap(),
+            "<<<<<<< SEARCH\n=======\nfoo = Bar {}\n>>>>>>> REPLACE"
+        );
+    }
+
+    #[test]
+    fn ignores_triple_backtick_inside_patch_body() {
+        // The model might echo a ```weft example inside the patch body.
+        // Using 4-backtick fences keeps that from prematurely closing.
+        let text = "````weft-patch\n<<<<<<< SEARCH\n=======\n# example: ```weft\nfoo = Bar {}\n# ```\n>>>>>>> REPLACE\n````";
+        let got = extract_weft_patch_block(text).unwrap();
+        assert!(got.contains("```weft"));
+        assert!(got.ends_with(">>>>>>> REPLACE"));
     }
 }

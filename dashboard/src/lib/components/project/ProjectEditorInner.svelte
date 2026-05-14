@@ -3246,7 +3246,7 @@
 		{:else if rightPanelTab === 'ai'}
 			<AiChatPanel
 				projectId={project.id}
-				getCurrentWeft={() => weftCode}
+				getCurrentWeft={() => ({ weft: weftCode, nodes: project.nodes })}
 				onApplyWeft={(newCode) => handleWeftCodeChange(newCode)}
 			/>
 		{/if}

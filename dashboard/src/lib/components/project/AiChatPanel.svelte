@@ -2,6 +2,9 @@
 	import { Button } from '$lib/components/ui/button';
 	import { postChat, type ChatMessage } from '$lib/ai/chat-client';
 	import { authFetch } from '$lib/config';
+	import { stripSensitiveFields } from '$lib/ai/sanitize';
+	import { applyWeftPatch } from '$lib/ai/weft-patch';
+	import type { ProjectDefinition } from '$lib/types';
 	import { Send, AlertCircle, Plus, ChevronDown, Trash2, X, Copy, Check } from '@lucide/svelte';
 	import { marked } from 'marked';
 
@@ -23,7 +26,7 @@
 		config,
 	}: {
 		projectId: string;
-		getCurrentWeft: () => string;
+		getCurrentWeft: () => { weft: string; nodes: ProjectDefinition['nodes'] };
 		onApplyWeft: (weftCode: string) => Promise<void> | void;
 		config?: { provider?: string; model?: string; apiKey?: string };
 	} = $props();
@@ -205,9 +208,12 @@
 
 			const fullHistory: ChatMessage[] = messages.map((m) => ({ role: m.role, content: m.content }));
 
+			const { weft: currentWeft, nodes: currentNodes } = getCurrentWeft();
+			const sanitizedWeft = stripSensitiveFields(currentWeft, currentNodes);
+
 			const res = await postChat({
 				messages: fullHistory,
-				projectContext: getCurrentWeft(),
+				projectContext: sanitizedWeft,
 				config,
 			});
 
@@ -227,11 +233,15 @@
 				console.warn('Failed to persist assistant reply:', e);
 			}
 
-			if (res.weftCode) {
+			if (res.weftPatch) {
 				try {
-					await onApplyWeft(res.weftCode);
+					const { patched, errors } = applyWeftPatch(currentWeft, res.weftPatch);
+					if (errors.length > 0) {
+						error = `Some patch blocks didn't match:\n${errors.join('\n')}`;
+					}
+					await onApplyWeft(patched);
 				} catch (e) {
-					error = `Parsed code but couldn't apply: ${e instanceof Error ? e.message : String(e)}`;
+					error = `Parsed patch but couldn't apply: ${e instanceof Error ? e.message : String(e)}`;
 				}
 			}
 		} catch (e) {
