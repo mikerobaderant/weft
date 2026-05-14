@@ -4939,6 +4939,7 @@ dependencies = [
  "hmac",
  "hostname",
  "jsonwebtoken",
+ "minillmlib",
  "rand 0.8.5",
  "reqwest",
  "serde",

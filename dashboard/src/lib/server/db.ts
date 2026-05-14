@@ -120,6 +120,7 @@ export async function initDb(): Promise<void> {
 	await initExecutionsTable();
 	await initVersionsTable();
 	await initTestConfigsTable();
+	await initChatsTables();
 	// Migration: add layout_code to versions table
 	try {
 		await pool.query(`ALTER TABLE project_versions ADD COLUMN IF NOT EXISTS layout_code TEXT`);
@@ -550,6 +551,144 @@ export async function deleteProjectVersion(id: string, userId: string): Promise<
 		 WHERE id = $1
 		   AND project_id IN (SELECT id FROM projects WHERE user_id = $2)`,
 		[id, userId]
+	);
+	return (result.rowCount ?? 0) > 0;
+}
+
+// =========================================================================
+// AI chats (Tangle-lite persistence)
+// =========================================================================
+
+export interface DbAiChat {
+	id: string;
+	projectId: string;
+	userId: string;
+	title: string;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface DbAiMessage {
+	id: string;
+	chatId: string;
+	role: 'user' | 'assistant';
+	content: string;
+	createdAt: Date;
+}
+
+const AI_CHAT_SELECT = `id, project_id AS "projectId", user_id AS "userId", title, created_at AS "createdAt", updated_at AS "updatedAt"`;
+const AI_MESSAGE_SELECT = `id, chat_id AS "chatId", role, content, created_at AS "createdAt"`;
+
+async function initChatsTables(): Promise<void> {
+	try {
+		await pool.query(`
+			CREATE TABLE IF NOT EXISTS ai_chats (
+				id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+				project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+				user_id TEXT NOT NULL,
+				title TEXT NOT NULL DEFAULT 'New chat',
+				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+				updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+			)
+		`);
+	} catch (e: unknown) {
+		const err = e as { code?: string };
+		if (err.code !== '23505' && err.code !== '42P07') throw e;
+	}
+	try {
+		await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_chats_project ON ai_chats(project_id, updated_at DESC)`);
+	} catch { /* ignore */ }
+
+	try {
+		await pool.query(`
+			CREATE TABLE IF NOT EXISTS ai_messages (
+				id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+				chat_id UUID NOT NULL REFERENCES ai_chats(id) ON DELETE CASCADE,
+				role TEXT NOT NULL CHECK (role IN ('user','assistant')),
+				content TEXT NOT NULL,
+				created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+			)
+		`);
+	} catch (e: unknown) {
+		const err = e as { code?: string };
+		if (err.code !== '23505' && err.code !== '42P07') throw e;
+	}
+	try {
+		await pool.query(`CREATE INDEX IF NOT EXISTS idx_ai_messages_chat ON ai_messages(chat_id, created_at)`);
+	} catch { /* ignore */ }
+}
+
+export async function createAiChat(projectId: string, userId: string): Promise<DbAiChat | null> {
+	const owner = await pool.query(`SELECT 1 FROM projects WHERE id = $1 AND user_id = $2`, [projectId, userId]);
+	if (owner.rowCount === 0) return null;
+	const result = await pool.query<DbAiChat>(
+		`INSERT INTO ai_chats (project_id, user_id) VALUES ($1, $2) RETURNING ${AI_CHAT_SELECT}`,
+		[projectId, userId]
+	);
+	return result.rows[0];
+}
+
+export async function listAiChats(projectId: string, userId: string): Promise<DbAiChat[]> {
+	const result = await pool.query<DbAiChat>(
+		`SELECT ${AI_CHAT_SELECT} FROM ai_chats
+		 WHERE project_id = $1 AND user_id = $2
+		 ORDER BY updated_at DESC`,
+		[projectId, userId]
+	);
+	return result.rows;
+}
+
+export async function getAiChatWithMessages(
+	chatId: string,
+	userId: string
+): Promise<{ chat: DbAiChat; messages: DbAiMessage[] } | null> {
+	const chatRes = await pool.query<DbAiChat>(
+		`SELECT ${AI_CHAT_SELECT} FROM ai_chats WHERE id = $1 AND user_id = $2`,
+		[chatId, userId]
+	);
+	const chat = chatRes.rows[0];
+	if (!chat) return null;
+	const msgRes = await pool.query<DbAiMessage>(
+		`SELECT ${AI_MESSAGE_SELECT} FROM ai_messages WHERE chat_id = $1 ORDER BY created_at ASC`,
+		[chatId]
+	);
+	return { chat, messages: msgRes.rows };
+}
+
+export async function appendAiMessage(
+	chatId: string,
+	userId: string,
+	role: 'user' | 'assistant',
+	content: string
+): Promise<DbAiMessage | null> {
+	const owner = await pool.query(`SELECT 1 FROM ai_chats WHERE id = $1 AND user_id = $2`, [chatId, userId]);
+	if (owner.rowCount === 0) return null;
+	const result = await pool.query<DbAiMessage>(
+		`INSERT INTO ai_messages (chat_id, role, content) VALUES ($1, $2, $3) RETURNING ${AI_MESSAGE_SELECT}`,
+		[chatId, role, content]
+	);
+	await pool.query(`UPDATE ai_chats SET updated_at = NOW() WHERE id = $1`, [chatId]);
+	return result.rows[0];
+}
+
+export async function updateAiChatTitle(
+	chatId: string,
+	userId: string,
+	title: string
+): Promise<DbAiChat | null> {
+	const result = await pool.query<DbAiChat>(
+		`UPDATE ai_chats SET title = $1, updated_at = NOW()
+		 WHERE id = $2 AND user_id = $3
+		 RETURNING ${AI_CHAT_SELECT}`,
+		[title, chatId, userId]
+	);
+	return result.rows[0] || null;
+}
+
+export async function deleteAiChat(chatId: string, userId: string): Promise<boolean> {
+	const result = await pool.query(
+		`DELETE FROM ai_chats WHERE id = $1 AND user_id = $2`,
+		[chatId, userId]
 	);
 	return (result.rowCount ?? 0) > 0;
 }

@@ -17,6 +17,7 @@ mod webhooks;
 mod crypto;
 mod log_utils;
 mod publish;
+mod ai_chat;
 
 use state::AppState;
 
@@ -111,6 +112,8 @@ async fn main() -> anyhow::Result<()> {
         // Credits API (admin)
         .route("/api/v1/admin/credits", post(routes::add_credits))
         .route("/api/v1/credits", get(routes::get_credits))
+        // AI chat (Tangle-lite — minimal OSS chat builder)
+        .route("/api/v1/ai/chat", post(ai_chat::chat))
         // Unified file storage
         .route("/api/v1/files", post(routes::create_file).get(routes::list_files))
         .route("/api/v1/files/{file_id}", get(routes::get_file).delete(routes::delete_file))

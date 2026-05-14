@@ -27,6 +27,7 @@
 
 	import WeftCodePanel from "./WeftCodePanel.svelte";
 	import ExecutionsPanel from "./ExecutionsPanel.svelte";
+	import AiChatPanel from "./AiChatPanel.svelte";
 
 	// Undo/Redo history
 	// History stores snapshots. historyIndex points to current state.
@@ -3201,12 +3202,18 @@
 			<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
 		</svg>
 	{/snippet}
+	{#snippet aiIcon()}
+		<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+			<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>
+		</svg>
+	{/snippet}
 	{#if !playground}
 	<RightSidebar
 		tabs={[
 			{ id: 'config', label: 'Config', icon: configIcon },
 			{ id: 'executions', label: 'Runs', icon: executionsIcon },
 			{ id: 'history', label: 'History', icon: historyIcon },
+			{ id: 'ai', label: 'AI', icon: aiIcon },
 		]}
 		bind:activeTab={rightPanelTab}
 		bind:collapsed={rightPanelCollapsed}
@@ -3235,6 +3242,12 @@
 					if (restoredLayout != null) layoutCode = restoredLayout;
 					handleWeftCodeChange(restoredWeft);
 				}}
+			/>
+		{:else if rightPanelTab === 'ai'}
+			<AiChatPanel
+				projectId={project.id}
+				getCurrentWeft={() => weftCode}
+				onApplyWeft={(newCode) => handleWeftCodeChange(newCode)}
 			/>
 		{/if}
 	</RightSidebar>
