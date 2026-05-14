@@ -10,6 +10,7 @@ path = "src/main.rs"
 [dependencies]
 weft-core = { path = "../weft-core" }
 weft-nodes = { path = "../weft-nodes" }
+minillmlib.workspace = true
 tokio.workspace = true
 axum.workspace = true
 tower-http.workspace = true
