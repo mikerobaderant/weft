@@ -19,7 +19,7 @@ function makeLlmConfig(id: string, apiKey: string): NodeInstance {
 	};
 }
 
-const SECRET = 'sk-secret-123';
+const SECRET = 'fake-test-apikey-do-not-rotate';
 
 const WEFT_WITH_SECRET = `cfg = LlmConfig {
   apiKey: "${SECRET}"
