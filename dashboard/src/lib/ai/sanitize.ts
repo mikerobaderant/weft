@@ -70,7 +70,7 @@ export function stripSensitiveFields(
 }
 
 /** A sensitive field whose original value couldn't be re-merged back into
- *  the patched source — the node id no longer exists (renamed or deleted
+ *  the patched source: the node id no longer exists (renamed or deleted
  *  by the model's patch). The chat panel surfaces these as a non-fatal
  *  warning so the user can re-enter the secret. */
 export interface LostSecret {
@@ -86,7 +86,12 @@ export interface RestoreResult {
 
 /** Match a node declaration by id at the start of a line: `nodeId = NodeType {`.
  *  Used by `restoreSensitiveFields` to distinguish "the patch removed this
- *  node" from "the field already had the right value." */
+ *  node" from "the field already had the right value."
+ *
+ *  Limit: this is a regex on raw text, not a parser-based check. A heredoc
+ *  whose body happens to contain a line shaped like `<id> = SomeWord` will
+ *  read as a real declaration, and a true rename will be missed. Realistic
+ *  collisions are rare; if this becomes a problem, swap to a parser query. */
 function nodeStillDeclared(weftCode: string, nodeId: string): boolean {
 	// Escape regex metacharacters in the id (ids are user-controlled but
 	// almost always plain identifiers; defense in depth is cheap).

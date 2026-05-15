@@ -13,7 +13,7 @@ import { stripSensitiveFields, restoreSensitiveFields, type LostSecret } from '$
 import { applyWeftPatch } from '$lib/ai/weft-patch';
 
 /** Result of preparing the outbound chat request body. The `projectContext`
- *  field is what gets posted to /api/ai/chat — it is guaranteed to have
+ *  field is what gets posted to /api/ai/chat: it is guaranteed to have
  *  every sensitive field value stripped. */
 export interface ChatRequestPayload {
 	projectContext: string;

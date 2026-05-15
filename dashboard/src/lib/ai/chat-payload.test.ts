@@ -27,7 +27,7 @@ const WEFT_WITH_SECRET = `cfg = LlmConfig {
   provider: "openrouter"
 }`;
 
-describe('buildChatPayload — outbound security contract', () => {
+describe('buildChatPayload: outbound security contract', () => {
 	it('strips sensitive values from projectContext', () => {
 		const node = makeLlmConfig('cfg', SECRET);
 		const { projectContext } = buildChatPayload(WEFT_WITH_SECRET, [node]);
@@ -53,7 +53,7 @@ describe('buildChatPayload — outbound security contract', () => {
 	});
 });
 
-describe('applyChatResponse — inbound security contract', () => {
+describe('applyChatResponse: inbound security contract', () => {
 	it('puts the original secret back after the model edits an unrelated field', () => {
 		const node = makeLlmConfig('cfg', SECRET);
 		// Model patch (computed against the sanitized view) renames the model field.
@@ -69,7 +69,7 @@ describe('applyChatResponse — inbound security contract', () => {
 			patch,
 		);
 
-		// Secret survived — this is the security claim of the whole flow.
+		// Secret survived. This is the security claim of the whole flow.
 		expect(restored).toContain(SECRET);
 		// Model's edit landed.
 		expect(restored).toContain('anthropic/claude-opus-4.6');
