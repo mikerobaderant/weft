@@ -21,20 +21,20 @@ function makeLlmConfig(id: string, apiKey: string): NodeInstance {
 
 describe('sanitize round-trip (strip → restore)', () => {
 	it('restoreSensitiveFields rewrites the original apiKey value', () => {
-		const node = makeLlmConfig('cfg', 'sk-secret-123');
+		const node = makeLlmConfig('cfg', 'fake-test-apikey-do-not-rotate');
 		const weft = `cfg = LlmConfig {
-  apiKey: "sk-secret-123"
+  apiKey: "fake-test-apikey-do-not-rotate"
   model: "anthropic/claude-sonnet-4.6"
   provider: "openrouter"
 }`;
 
 		const stripped = stripSensitiveFields(weft, [node]);
 		// Sanity: the secret is gone after stripping.
-		expect(stripped).not.toContain('sk-secret-123');
+		expect(stripped).not.toContain('fake-test-apikey-do-not-rotate');
 
 		const { restored, lostSecrets } = restoreSensitiveFields(stripped, [node]);
 		// The real value is back.
-		expect(restored).toContain('sk-secret-123');
+		expect(restored).toContain('fake-test-apikey-do-not-rotate');
 		expect(lostSecrets).toHaveLength(0);
 	});
 
@@ -53,7 +53,7 @@ describe('sanitize round-trip (strip → restore)', () => {
 	});
 
 	it('reports a lost secret when the patch deleted the node entirely', () => {
-		const node = makeLlmConfig('cfg', 'sk-secret-123');
+		const node = makeLlmConfig('cfg', 'fake-test-apikey-do-not-rotate');
 		// Simulates the model returning a patch that removed the LlmConfig node.
 		const patchedSource = `other = Text { value: "still here" }`;
 
@@ -62,14 +62,14 @@ describe('sanitize round-trip (strip → restore)', () => {
 		// patched source is unchanged. The deleted node's old apiKey is NOT
 		// re-inserted into a node that no longer exists.
 		expect(restored).toBe(patchedSource);
-		expect(restored).not.toContain('sk-secret-123');
+		expect(restored).not.toContain('fake-test-apikey-do-not-rotate');
 		// But we DID detect that a secret was lost.
 		expect(lostSecrets).toHaveLength(1);
 		expect(lostSecrets[0]).toMatchObject({ nodeId: 'cfg', fieldKey: 'apiKey' });
 	});
 
 	it('reports a lost secret when the patch renamed the node', () => {
-		const node = makeLlmConfig('cfg', 'sk-secret-123');
+		const node = makeLlmConfig('cfg', 'fake-test-apikey-do-not-rotate');
 		// Simulates the model patching `cfg` → `myConfig`. The renamed node
 		// has the stripped (empty) apiKey because the model wrote against the
 		// sanitized view; restore looks up by the original id and misses.
@@ -80,15 +80,15 @@ describe('sanitize round-trip (strip → restore)', () => {
 
 		const { restored, lostSecrets } = restoreSensitiveFields(patchedSource, [node]);
 		expect(restored).toBe(patchedSource);
-		expect(restored).not.toContain('sk-secret-123');
+		expect(restored).not.toContain('fake-test-apikey-do-not-rotate');
 		expect(lostSecrets).toHaveLength(1);
 		expect(lostSecrets[0]).toMatchObject({ nodeId: 'cfg', fieldKey: 'apiKey' });
 	});
 
 	it('does not touch non-sensitive field values', () => {
-		const node = makeLlmConfig('cfg', 'sk-secret-123');
+		const node = makeLlmConfig('cfg', 'fake-test-apikey-do-not-rotate');
 		const weft = `cfg = LlmConfig {
-  apiKey: "sk-secret-123"
+  apiKey: "fake-test-apikey-do-not-rotate"
   model: "anthropic/claude-sonnet-4.6"
   provider: "openrouter"
 }`;

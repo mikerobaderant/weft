@@ -2,8 +2,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { postChat, type ChatMessage } from '$lib/ai/chat-client';
 	import { authFetch } from '$lib/config';
-	import { stripSensitiveFields, restoreSensitiveFields } from '$lib/ai/sanitize';
-	import { applyWeftPatch } from '$lib/ai/weft-patch';
+	import { buildChatPayload, applyChatResponse } from '$lib/ai/chat-payload';
 	import type { ProjectDefinition } from '$lib/types';
 	import { Send, AlertCircle, Plus, ChevronDown, Trash2, X, Copy, Check } from '@lucide/svelte';
 	import { marked } from 'marked';
@@ -44,6 +43,7 @@
 	let input = $state('');
 	let sending = $state(false);
 	let error = $state<string | null>(null);
+	let warning = $state<string | null>(null);
 	let booted = $state(false);
 	let dropdownOpen = $state(false);
 	let editingTitle = $state(false);
@@ -178,6 +178,7 @@
 		if (!trimmed || sending || !activeChatId) return;
 
 		error = null;
+		warning = null;
 		const userMsg: StoredMessage = {
 			id: crypto.randomUUID(),
 			role: 'user',
@@ -209,11 +210,11 @@
 			const fullHistory: ChatMessage[] = messages.map((m) => ({ role: m.role, content: m.content }));
 
 			const { weft: currentWeft, nodes: currentNodes } = getCurrentWeft();
-			const sanitizedWeft = stripSensitiveFields(currentWeft, currentNodes);
+			const { projectContext } = buildChatPayload(currentWeft, currentNodes);
 
 			const res = await postChat({
 				messages: fullHistory,
-				projectContext: sanitizedWeft,
+				projectContext,
 				config,
 			});
 
@@ -235,25 +236,24 @@
 
 			if (res.weftPatch) {
 				try {
-					const { patched, errors } = applyWeftPatch(currentWeft, res.weftPatch);
-					const messages: string[] = [];
+					const { restored, errors, lostSecrets } = applyChatResponse(
+						currentWeft,
+						currentNodes,
+						res.weftPatch,
+					);
+					const warnings: string[] = [];
 					if (errors.length > 0) {
-						messages.push(`Some patch blocks didn't match:\n${errors.join('\n')}`);
+						warnings.push(`Some patch blocks didn't match:\n${errors.join('\n')}`);
 					}
-					// The model writes patches against the sanitized view, so any
-					// SEARCH/REPLACE that touches a sensitive field would clobber
-					// the real value with the stripped one. Re-merge the originals
-					// keyed on (nodeId, fieldKey) before pushing to the editor.
-					const { restored, lostSecrets } = restoreSensitiveFields(patched, currentNodes);
 					if (lostSecrets.length > 0) {
 						const list = lostSecrets
 							.map((s) => `${s.nodeLabel} (${s.fieldKey})`)
 							.join(', ');
-						messages.push(
-							`This patch renamed or removed nodes that held secrets — please re-enter: ${list}`,
+						warnings.push(
+							`This patch renamed or removed nodes that held secrets. Please re-enter: ${list}`,
 						);
 					}
-					if (messages.length > 0) error = messages.join('\n\n');
+					if (warnings.length > 0) warning = warnings.join('\n\n');
 					await onApplyWeft(restored);
 				} catch (e) {
 					error = `Parsed patch but couldn't apply: ${e instanceof Error ? e.message : String(e)}`;
@@ -435,10 +435,20 @@
 		{/if}
 	</div>
 
+	{#if warning}
+		<div class="mx-3 mb-2 flex items-start gap-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">
+			<AlertCircle class="w-3.5 h-3.5 shrink-0 mt-0.5" />
+			<span class="break-words flex-1 whitespace-pre-line">{warning}</span>
+			<button onclick={() => (warning = null)} class="shrink-0 text-amber-500 hover:text-amber-700">
+				<X class="w-3 h-3" />
+			</button>
+		</div>
+	{/if}
+
 	{#if error}
 		<div class="mx-3 mb-2 flex items-start gap-2 rounded border border-red-200 bg-red-50 px-2 py-1.5 text-[11px] text-red-700">
 			<AlertCircle class="w-3.5 h-3.5 shrink-0 mt-0.5" />
-			<span class="break-words flex-1">{error}</span>
+			<span class="break-words flex-1 whitespace-pre-line">{error}</span>
 			<button onclick={() => (error = null)} class="shrink-0 text-red-400 hover:text-red-600">
 				<X class="w-3 h-3" />
 			</button>

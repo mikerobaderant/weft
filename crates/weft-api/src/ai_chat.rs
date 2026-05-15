@@ -232,4 +232,18 @@ mod tests {
         assert!(got.contains("```weft"));
         assert!(got.ends_with(">>>>>>> REPLACE"));
     }
+
+    #[test]
+    fn extracts_multi_block_patch_intact() {
+        // Production case: the system prompt allows multiple SEARCH/REPLACE
+        // pairs in one fence. The Rust extractor only strips the fence; the
+        // body must come through with all pairs intact so applyWeftPatch
+        // (TS side) can iterate them.
+        let text = "Here are two edits:\n\n````weft-patch\n<<<<<<< SEARCH\nold_a\n=======\nnew_a\n>>>>>>> REPLACE\n<<<<<<< SEARCH\nold_b\n=======\nnew_b\n>>>>>>> REPLACE\n````\n\nDone.";
+        let got = extract_weft_patch_block(text).unwrap();
+        assert_eq!(got.matches("<<<<<<< SEARCH").count(), 2);
+        assert_eq!(got.matches(">>>>>>> REPLACE").count(), 2);
+        assert!(got.contains("old_a"));
+        assert!(got.contains("new_b"));
+    }
 }
