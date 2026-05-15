@@ -6,7 +6,7 @@ import { buildNodeCatalog, formatNodeCatalog } from '$lib/ai/node-catalog';
 
 const DEFAULT_CONTEXT_TURNS = 10;
 
-const SYSTEM_PROMPT_TEMPLATE = `You are Tangle-lite, an AI builder for Weft projects. Weft is a typed, graph-based programming language that is NEW and likely not in your training data. Follow the syntax below exactly.
+const SYSTEM_PROMPT_TEMPLATE = `You are Weave Chat, an AI builder for Weft projects. Weft is a typed, graph-based programming language that is NEW and likely not in your training data. Follow the syntax below exactly.
 
 # Weft syntax reference
 Every node is declared as \`name = NodeType { field: value, ... }\`. Edges connect one node's output port to another node's input port using dotted assignment: \`target.inputPort = source.outputPort\`. Ports must have compatible types.
@@ -107,7 +107,7 @@ export const POST: RequestHandler = async ({ request, fetch }) => {
 	// Truncate to last N turns to keep provider context bounded on long
 	// conversations. UI keeps the full history from the DB; only the
 	// provider call is trimmed.
-	const turns = Number(env.TANGLE_LITE_CONTEXT_TURNS) || DEFAULT_CONTEXT_TURNS;
+	const turns = Number(env.WEAVE_CHAT_CONTEXT_TURNS) || DEFAULT_CONTEXT_TURNS;
 	const maxMessages = Math.max(2, turns * 2);
 	const windowed = body.messages.slice(-maxMessages);
 

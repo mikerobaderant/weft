@@ -112,7 +112,7 @@ async fn main() -> anyhow::Result<()> {
         // Credits API (admin)
         .route("/api/v1/admin/credits", post(routes::add_credits))
         .route("/api/v1/credits", get(routes::get_credits))
-        // AI chat (Tangle-lite — minimal OSS chat builder)
+        // AI chat (Weave Chat — minimal OSS chat builder)
         .route("/api/v1/ai/chat", post(ai_chat::chat))
         // Unified file storage
         .route("/api/v1/files", post(routes::create_file).get(routes::list_files))

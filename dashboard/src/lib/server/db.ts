@@ -556,7 +556,7 @@ export async function deleteProjectVersion(id: string, userId: string): Promise<
 }
 
 // =========================================================================
-// AI chats (Tangle-lite persistence)
+// AI chats (Weave Chat persistence)
 // =========================================================================
 
 export interface DbAiChat {

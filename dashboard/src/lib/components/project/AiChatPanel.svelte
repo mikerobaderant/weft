@@ -35,7 +35,7 @@
 	type StoredMessage = { id: string; role: 'user' | 'assistant'; content: string; createdAt: string };
 
 	// Provider context is windowed server-side (see
-	// `routes/api/ai/chat/+server.ts`, env TANGLE_LITE_CONTEXT_TURNS).
+	// `routes/api/ai/chat/+server.ts`, env WEAVE_CHAT_CONTEXT_TURNS).
 	// UI shows the full conversation from the DB regardless.
 
 	let chats = $state<ChatSummary[]>([]);
@@ -394,7 +394,7 @@
 			<div class="text-xs text-zinc-400">Loading…</div>
 		{:else if messages.length === 0}
 			<div class="text-xs text-zinc-500 leading-relaxed">
-				<p class="font-semibold text-zinc-700 mb-1">Tangle-lite</p>
+				<p class="font-semibold text-zinc-700 mb-1">Weave Chat</p>
 				<p>Describe what you want to build or change. I'll patch your .weft program and apply the edits to the canvas.</p>
 				<p class="mt-2 text-zinc-400">Try: "Add a Debug node wired to a Text node that says hello"</p>
 			</div>
@@ -452,7 +452,7 @@
 				bind:value={input}
 				onkeydown={onKeydown}
 				disabled={sending || !booted}
-				placeholder="Ask Tangle-lite..."
+				placeholder="Ask Weave Chat..."
 				rows="2"
 				class="flex-1 resize-y min-h-[3.5rem] max-h-[50vh] overflow-x-hidden rounded border border-zinc-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-zinc-400 disabled:bg-zinc-50 disabled:text-zinc-400"
 			></textarea>
