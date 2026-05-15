@@ -236,14 +236,24 @@
 			if (res.weftPatch) {
 				try {
 					const { patched, errors } = applyWeftPatch(currentWeft, res.weftPatch);
+					const messages: string[] = [];
 					if (errors.length > 0) {
-						error = `Some patch blocks didn't match:\n${errors.join('\n')}`;
+						messages.push(`Some patch blocks didn't match:\n${errors.join('\n')}`);
 					}
 					// The model writes patches against the sanitized view, so any
 					// SEARCH/REPLACE that touches a sensitive field would clobber
 					// the real value with the stripped one. Re-merge the originals
 					// keyed on (nodeId, fieldKey) before pushing to the editor.
-					const restored = restoreSensitiveFields(patched, currentNodes);
+					const { restored, lostSecrets } = restoreSensitiveFields(patched, currentNodes);
+					if (lostSecrets.length > 0) {
+						const list = lostSecrets
+							.map((s) => `${s.nodeLabel} (${s.fieldKey})`)
+							.join(', ');
+						messages.push(
+							`This patch renamed or removed nodes that held secrets — please re-enter: ${list}`,
+						);
+					}
+					if (messages.length > 0) error = messages.join('\n\n');
 					await onApplyWeft(restored);
 				} catch (e) {
 					error = `Parsed patch but couldn't apply: ${e instanceof Error ? e.message : String(e)}`;
@@ -385,7 +395,7 @@
 		{:else if messages.length === 0}
 			<div class="text-xs text-zinc-500 leading-relaxed">
 				<p class="font-semibold text-zinc-700 mb-1">Tangle-lite</p>
-				<p>Describe what you want to build or change. I'll write the complete .weft program and apply it to the canvas.</p>
+				<p>Describe what you want to build or change. I'll patch your .weft program and apply the edits to the canvas.</p>
 				<p class="mt-2 text-zinc-400">Try: "Add a Debug node wired to a Text node that says hello"</p>
 			</div>
 		{/if}
