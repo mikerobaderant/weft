@@ -84,6 +84,17 @@ export interface RestoreResult {
 	lostSecrets: LostSecret[];
 }
 
+/** Match a node declaration by id at the start of a line: `nodeId = NodeType {`.
+ *  Used by `restoreSensitiveFields` to distinguish "the patch removed this
+ *  node" from "the field already had the right value." */
+function nodeStillDeclared(weftCode: string, nodeId: string): boolean {
+	// Escape regex metacharacters in the id (ids are user-controlled but
+	// almost always plain identifiers; defense in depth is cheap).
+	const escaped = nodeId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	const re = new RegExp(`(^|\\n)\\s*${escaped}\\s*=\\s*\\w`);
+	return re.test(weftCode);
+}
+
 /** Inverse of `stripSensitiveFields`. After applying an AI-generated patch,
  *  call this to write each node's original sensitive value back into the
  *  source. The chat panel sends the model a sanitized view of the project,
@@ -93,9 +104,10 @@ export interface RestoreResult {
  *  values keyed on (nodeId, fieldKey) after patch application.
  *
  *  When the patch renamed or deleted a node that held a sensitive value,
- *  `updateNodeConfig` short-circuits and the secret can't be restored.
- *  We detect that case by comparing pre/post strings on each write and
- *  return them in `lostSecrets` so the caller can surface a warning. */
+ *  the original id is no longer in the patched source and the secret
+ *  can't be restored. We detect that case by checking whether each
+ *  original node id is still declared in the patched source, and report
+ *  it via `lostSecrets` so the caller can surface a warning. */
 export function restoreSensitiveFields(
 	weftCode: string,
 	originalNodes: ProjectDefinition['nodes'],
@@ -109,15 +121,15 @@ export function restoreSensitiveFields(
 			if (!SENSITIVE_FIELD_TYPES.has(field.type)) continue;
 			const value = node.config?.[field.key];
 			if (value === undefined || value === '') continue;
-			const before = restored;
-			restored = updateNodeConfig(before, node.id, field.key, value);
-			if (before === restored) {
+			if (!nodeStillDeclared(restored, node.id)) {
 				lostSecrets.push({
 					nodeId: node.id,
 					fieldKey: field.key,
 					nodeLabel: node.label ?? node.id,
 				});
+				continue;
 			}
+			restored = updateNodeConfig(restored, node.id, field.key, value);
 		}
 	}
 	return { restored, lostSecrets };

@@ -114,7 +114,7 @@ export const POST: RequestHandler = async ({ request, fetch }) => {
 	const catalogText = formatNodeCatalog(buildNodeCatalog().nodes);
 	const systemPrompt = SYSTEM_PROMPT_TEMPLATE.replace('{{CATALOG}}', catalogText).replace(
 		'{{PROJECT}}',
-		body.projectContext || '(empty project — user has not defined anything yet)',
+		body.projectContext || '(empty project: user has not defined anything yet)',
 	);
 
 	const apiUrl = getApiUrl();
