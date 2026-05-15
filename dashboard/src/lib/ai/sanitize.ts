@@ -69,6 +69,60 @@ export function stripSensitiveFields(
 	return stripped;
 }
 
+/** A sensitive field whose original value couldn't be re-merged back into
+ *  the patched source — the node id no longer exists (renamed or deleted
+ *  by the model's patch). The chat panel surfaces these as a non-fatal
+ *  warning so the user can re-enter the secret. */
+export interface LostSecret {
+	nodeId: string;
+	fieldKey: string;
+	nodeLabel: string;
+}
+
+export interface RestoreResult {
+	restored: string;
+	lostSecrets: LostSecret[];
+}
+
+/** Inverse of `stripSensitiveFields`. After applying an AI-generated patch,
+ *  call this to write each node's original sensitive value back into the
+ *  source. The chat panel sends the model a sanitized view of the project,
+ *  so any SEARCH/REPLACE block the model produces references the stripped
+ *  value; applying that patch to the unsanitized source would silently
+ *  overwrite real secrets. We sidestep that by re-merging the original
+ *  values keyed on (nodeId, fieldKey) after patch application.
+ *
+ *  When the patch renamed or deleted a node that held a sensitive value,
+ *  `updateNodeConfig` short-circuits and the secret can't be restored.
+ *  We detect that case by comparing pre/post strings on each write and
+ *  return them in `lostSecrets` so the caller can surface a warning. */
+export function restoreSensitiveFields(
+	weftCode: string,
+	originalNodes: ProjectDefinition['nodes'],
+): RestoreResult {
+	let restored = weftCode;
+	const lostSecrets: LostSecret[] = [];
+	for (const node of originalNodes) {
+		const template = NODE_TYPE_CONFIG[node.nodeType];
+		if (!template) continue;
+		for (const field of template.fields) {
+			if (!SENSITIVE_FIELD_TYPES.has(field.type)) continue;
+			const value = node.config?.[field.key];
+			if (value === undefined || value === '') continue;
+			const before = restored;
+			restored = updateNodeConfig(before, node.id, field.key, value);
+			if (before === restored) {
+				lostSecrets.push({
+					nodeId: node.id,
+					fieldKey: field.key,
+					nodeLabel: node.label ?? node.id,
+				});
+			}
+		}
+	}
+	return { restored, lostSecrets };
+}
+
 /**
  * Visitor access allowlist. Mirrors the server-side shape consumed by
  * weft-api's publish_execute and cloud-api's latest_trigger_run: a pair

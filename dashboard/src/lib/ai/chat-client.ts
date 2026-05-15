@@ -8,7 +8,7 @@ export type ChatConfig = {
 
 export type ChatResponse = {
 	text: string;
-	weftCode?: string | null;
+	weftPatch?: string | null;
 	provider: string;
 	model: string;
 };

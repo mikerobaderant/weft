@@ -138,3 +138,47 @@ node1 = Text { value: "world" }
 		expect(result.patched).toContain(')\n  out(report: String)');
 	});
 });
+
+describe('weft-patch empty-SEARCH guard', () => {
+	it('empty SEARCH on empty source becomes the whole project', () => {
+		const patch = `<<<<<<< SEARCH
+=======
+node = Debug { label: "Hello" }
+>>>>>>> REPLACE`;
+
+		const result = applyWeftPatch('', patch);
+		expect(result.errors).toHaveLength(0);
+		expect(result.patched).toBe('node = Debug { label: "Hello" }');
+	});
+
+	it('empty SEARCH on non-empty source returns an error and leaves source unchanged', () => {
+		const source = 'existing = Text { value: "keep me" }';
+		const patch = `<<<<<<< SEARCH
+=======
+prepended = Debug {}
+>>>>>>> REPLACE`;
+
+		const result = applyWeftPatch(source, patch);
+		expect(result.patched).toBe(source);
+		expect(result.errors).toHaveLength(1);
+		expect(result.errors[0]).toMatch(/empty SEARCH block/i);
+	});
+
+	it('mix of valid block and empty-SEARCH block: valid applies, empty errors', () => {
+		const source = 'a = Text { value: "old" }';
+		const patch = `<<<<<<< SEARCH
+a = Text { value: "old" }
+=======
+a = Text { value: "new" }
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+=======
+b = Debug {}
+>>>>>>> REPLACE`;
+
+		const result = applyWeftPatch(source, patch);
+		expect(result.patched).toBe('a = Text { value: "new" }');
+		expect(result.errors).toHaveLength(1);
+		expect(result.errors[0]).toMatch(/empty SEARCH block/i);
+	});
+});
