@@ -75,6 +75,20 @@ function spliceAt(source: string, offset: number, length: number, replacement: s
 function applyBlock(source: string, block: SearchReplaceBlock): { result: string; error?: string } {
 	const replace = trimTrailing(block.replace);
 
+	// Empty SEARCH means "insert this as the whole project," so it's only
+	// valid when the source is itself empty. Without this guard, indexOf("")
+	// returns 0 for any haystack and a hallucinated empty-SEARCH would
+	// silently prepend the REPLACE text to a real project.
+	if (block.search.trim() === '') {
+		if (source.trim() !== '') {
+			return {
+				result: source,
+				error: 'Empty SEARCH block is only allowed when the project is empty',
+			};
+		}
+		return { result: replace };
+	}
+
 	// 1. Find search text in source
 	const match = findInRaw(source, block.search);
 	if (match) {

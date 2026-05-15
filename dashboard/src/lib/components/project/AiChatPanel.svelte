@@ -2,7 +2,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { postChat, type ChatMessage } from '$lib/ai/chat-client';
 	import { authFetch } from '$lib/config';
-	import { stripSensitiveFields } from '$lib/ai/sanitize';
+	import { stripSensitiveFields, restoreSensitiveFields } from '$lib/ai/sanitize';
 	import { applyWeftPatch } from '$lib/ai/weft-patch';
 	import type { ProjectDefinition } from '$lib/types';
 	import { Send, AlertCircle, Plus, ChevronDown, Trash2, X, Copy, Check } from '@lucide/svelte';
@@ -239,7 +239,12 @@
 					if (errors.length > 0) {
 						error = `Some patch blocks didn't match:\n${errors.join('\n')}`;
 					}
-					await onApplyWeft(patched);
+					// The model writes patches against the sanitized view, so any
+					// SEARCH/REPLACE that touches a sensitive field would clobber
+					// the real value with the stripped one. Re-merge the originals
+					// keyed on (nodeId, fieldKey) before pushing to the editor.
+					const restored = restoreSensitiveFields(patched, currentNodes);
+					await onApplyWeft(restored);
 				} catch (e) {
 					error = `Parsed patch but couldn't apply: ${e instanceof Error ? e.message : String(e)}`;
 				}

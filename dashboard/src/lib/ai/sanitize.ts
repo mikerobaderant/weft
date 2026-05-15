@@ -69,6 +69,33 @@ export function stripSensitiveFields(
 	return stripped;
 }
 
+/** Inverse of `stripSensitiveFields`. After applying an AI-generated patch,
+ *  call this to write each node's original sensitive value back into the
+ *  source. The chat panel sends the model a sanitized view of the project,
+ *  so any SEARCH/REPLACE block the model produces references the stripped
+ *  value; applying that patch to the unsanitized source would silently
+ *  overwrite real secrets. We sidestep that by re-merging the original
+ *  values keyed on (nodeId, fieldKey) after patch application. Nodes that
+ *  the patch deleted are skipped automatically — `updateNodeConfig`
+ *  short-circuits when the node id no longer matches. */
+export function restoreSensitiveFields(
+	weftCode: string,
+	originalNodes: ProjectDefinition['nodes'],
+): string {
+	let restored = weftCode;
+	for (const node of originalNodes) {
+		const template = NODE_TYPE_CONFIG[node.nodeType];
+		if (!template) continue;
+		for (const field of template.fields) {
+			if (!SENSITIVE_FIELD_TYPES.has(field.type)) continue;
+			const value = node.config?.[field.key];
+			if (value === undefined || value === '') continue;
+			restored = updateNodeConfig(restored, node.id, field.key, value);
+		}
+	}
+	return restored;
+}
+
 /**
  * Visitor access allowlist. Mirrors the server-side shape consumed by
  * weft-api's publish_execute and cloud-api's latest_trigger_run: a pair
